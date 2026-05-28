@@ -37,6 +37,13 @@
             &nbsp;·&nbsp;
             Yesterday: <strong>{{ "%.2f" | format(c.ma5_yesterday) }}</strong>
           </div>
+          <div class="callout-explain">
+            {% if is_higher %}
+              The S&amp;P 500's short-term momentum is <strong>improving</strong> — average closing prices over the last 5 days are trending up.
+            {% else %}
+              The S&amp;P 500's short-term momentum is <strong>weakening</strong> — average closing prices over the last 5 days are trending down.
+            {% endif %}
+          </div>
         </div>
       </div>
 

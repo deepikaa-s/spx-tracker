@@ -120,6 +120,13 @@ body {
   margin-top: 2px;
 }
 
+.callout-explain {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
 /* Stats */
 .stats-row {
   display: flex;
