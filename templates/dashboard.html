@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPX Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="page">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <h1>SPX Dashboard</h1>
+        <span class="subtitle">S&amp;P 500 · Daily Closing Prices</span>
+      </div>
+      <div class="updated-at">
+        Last updated: <strong>{{ data.updated_at | replace("T", " ") | replace("Z", " UTC") }}</strong>
+      </div>
+    </header>
+
+    <!-- Callout + stats row -->
+    <div class="top-row">
+
+      {% set c = data.spx.callout %}
+      {% set is_higher = c.direction == "higher" %}
+      <div class="callout {{ 'callout--up' if is_higher else 'callout--down' }}">
+        <span class="callout-arrow">{{ "▲" if is_higher else "▼" }}</span>
+        <div class="callout-body">
+          <div class="callout-label">5-Day MA is
+            <strong>{{ c.direction | upper }}</strong> than yesterday
+          </div>
+          <div class="callout-values">
+            Today: <strong>{{ "%.2f" | format(c.ma5_today) }}</strong>
+            &nbsp;·&nbsp;
+            Yesterday: <strong>{{ "%.2f" | format(c.ma5_yesterday) }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Latest Close</div>
+          <div class="stat-value">${{ "%.2f" | format(c.latest_close) }}</div>
+        </div>
+        <div class="stat-card stat-card--yellow">
+          <div class="stat-label">5-Day MA</div>
+          <div class="stat-value">{{ "%.2f" | format(c.ma5_today) }}</div>
+        </div>
+        <div class="stat-card stat-card--cyan">
+          <div class="stat-label">10-Day MA</div>
+          <div class="stat-value">{{ "%.2f" | format(c.ma10_today) }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <section class="card chart-card">
+      <h2>SPX Price &amp; Moving Averages <span class="chart-subtitle">(60 trading days, closing prices)</span></h2>
+      <div class="chart-wrap">
+        <canvas id="spxChart"></canvas>
+      </div>
+    </section>
+
+    <!-- Holdings table -->
+    <section class="card table-card">
+      <h2>Top 50 S&amp;P 500 Holdings</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Company</th>
+              <th>Symbol</th>
+              <th>Weight %</th>
+              <th>Latest Close</th>
+              <th>Yesterday</th>
+              <th>Δ%</th>
+              <th>52W Avg</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in data.holdings %}
+            {% set latest = h.price_latest %}
+            {% set prev   = h.price_yesterday %}
+            {% if latest and prev and prev != 0 %}
+              {% set delta = ((latest - prev) / prev * 100) %}
+            {% else %}
+              {% set delta = None %}
+            {% endif %}
+            <tr>
+              <td class="td-rank">{{ h.rank }}</td>
+              <td class="td-name">{{ h.name }}</td>
+              <td class="td-symbol">{{ h.symbol }}</td>
+              <td class="td-weight">{{ "%.2f" | format(h.weight) }}%</td>
+              <td class="td-price">
+                {% if latest %}${{ "%.2f" | format(latest) }}{% else %}—{% endif %}
+              </td>
+              <td class="td-price">
+                {% if prev %}${{ "%.2f" | format(prev) }}{% else %}—{% endif %}
+              </td>
+              <td class="td-delta {% if delta is not none %}{{ 'td-up' if delta >= 0 else 'td-down' }}{% endif %}">
+                {% if delta is not none %}
+                  {{ "+" if delta >= 0 else "" }}{{ "%.2f" | format(delta) }}%
+                {% else %}—{% endif %}
+              </td>
+              <td class="td-price">
+                {% if h.price_52w_avg %}${{ "%.2f" | format(h.price_52w_avg) }}{% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div><!-- .page -->
+
+  <script>
+    const chartData = {{ data.spx.chart | tojson }};
+
+    const labels  = chartData.map(d => d.date);
+    const closes  = chartData.map(d => d.close);
+    const ma5s    = chartData.map(d => d.ma5);
+    const ma10s   = chartData.map(d => d.ma10);
+
+    const ctx = document.getElementById("spxChart").getContext("2d");
+    new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "SPX Close",
+            data: closes,
+            borderColor: "rgba(255,255,255,0.85)",
+            backgroundColor: "rgba(255,255,255,0.04)",
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.3,
+            fill: true,
+          },
+          {
+            label: "5-Day MA",
+            data: ma5s,
+            borderColor: "rgba(255,214,0,0.9)",
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.3,
+            fill: false,
+          },
+          {
+            label: "10-Day MA",
+            data: ma10s,
+            borderColor: "rgba(0,210,210,0.9)",
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.3,
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: {
+            labels: { color: "#c8d0de", font: { size: 13 } },
+          },
+          tooltip: {
+            backgroundColor: "rgba(20,24,36,0.95)",
+            titleColor: "#e2e8f0",
+            bodyColor: "#a0aec0",
+            borderColor: "#2d3748",
+            borderWidth: 1,
+            callbacks: {
+              label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: "#718096",
+              maxTicksLimit: 12,
+              font: { size: 11 },
+            },
+            grid: { color: "rgba(255,255,255,0.05)" },
+          },
+          y: {
+            ticks: { color: "#718096", font: { size: 11 } },
+            grid: { color: "rgba(255,255,255,0.05)" },
+          },
+        },
+      },
+    });
+  </script>
+</body>
+</html>
